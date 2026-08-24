@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Controle de Suplementação — Smoke GIS (M7.2c)</title>
+  <title>Controle de Suplementação — Acesso (M7.2d)</title>
   <style>
     :root {
       --ink: #12203a;
@@ -13,6 +13,7 @@
       --ok: #2f7a52;
       --warn: #92400e;
       --muted: #6b7280;
+      --err: #b23b3b;
     }
     * { box-sizing: border-box; }
     body {
@@ -67,6 +68,14 @@
       font-size: 0.95rem;
       margin: 0 0 16px;
     }
+    .status {
+      font-size: 0.9rem;
+      color: var(--muted);
+      margin: 12px 0 0;
+      min-height: 1.35em;
+    }
+    .status.ok { color: var(--ok); }
+    .status.err { color: var(--err); }
     .diag dl {
       margin: 0;
       font-size: 0.9rem;
@@ -130,24 +139,26 @@
     <p class="subtitle">Acesso</p>
 
     <div class="dev-banner">
-      Página de diagnóstico temporária (M7.2c). Não é o sistema principal.
-      O decode do JWT abaixo <strong>não</strong> é validação de segurança.
+      M7.2d — após “Entrar com Google”, o ID token é enviado ao Apps Script por
+      <strong>form POST</strong> (não fica na URL). O sistema principal ainda não
+      autoriza por esta identidade.
     </div>
 
     <div class="card" id="card-signin">
       <h2>Entrar</h2>
       <div id="signin-area"></div>
+      <p class="status" id="status-line"></p>
       <p class="config-note">
-        Client ID: substitua <code>GOOGLE_CLIENT_ID</code> no script desta página
-        (constante no topo do &lt;script&gt;).
+        Configure no script: <code>GOOGLE_CLIENT_ID</code> e
+        <code>GAS_WEB_APP_URL</code> (URL /exec da implantação).
       </p>
     </div>
 
     <div class="card hidden" id="card-result">
       <p class="success" id="msg-success">
-        Login GIS recebido com sucesso — token ainda NÃO validado pelo backend.
+        Decode local (DEV) — NÃO é validação de segurança.
       </p>
-      <h2>Conta reconhecida para teste</h2>
+      <h2>Claims diagnósticos (?dev=1)</h2>
       <div class="diag" id="diag-fields"></div>
       <button type="button" class="btn-reset" id="btn-reset">
         Sair / Testar outra conta
@@ -155,28 +166,53 @@
     </div>
 
     <p class="footnote">
-      Esta página não grava token, não chama Apps Script e não autoriza acesso ao sistema.
+      Esta página não grava token, não usa localStorage e não autoriza o sistema.
+      Adicione <code>?dev=1</code> na URL para ver claims diagnósticos locais
+      (decode ≠ validação).
     </p>
   </div>
+
+  <!-- Form POST top-level → Apps Script doPost (evita CORS do fetch). -->
+  <form id="handoff-form" method="POST" action="" accept-charset="UTF-8" class="hidden">
+    <input type="hidden" name="id_token" id="handoff-id-token" value="">
+  </form>
 
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script>
     /* ===================================================================
-       M7.2c — Smoke test GIS (GitHub Pages)
-       Substitua pelo OAuth Client ID Web (público) do Google Cloud Console:
+       M7.2d — GitHub Pages → GIS → form POST → GAS
+       Client ID Web (público):
        https://console.cloud.google.com/apis/credentials
        =================================================================== */
     var GOOGLE_CLIENT_ID = '554666690300-kn5di3i37h8d4ddu9ibk6mtmhaspv6ti.apps.googleusercontent.com';
 
+    /* Cole a URL /exec da implantação (Execute as Me + Anyone). */
+    var GAS_WEB_APP_URL = 'COLE_AQUI_A_URL_DO_WEB_APP_EXEC';
+
+    var DEV_MODE = /[?&]dev=1(?:&|$)/.test(window.location.search);
+
     var cardSignin = document.getElementById('card-signin');
     var cardResult = document.getElementById('card-result');
     var signinArea = document.getElementById('signin-area');
+    var statusLine = document.getElementById('status-line');
     var diagFields = document.getElementById('diag-fields');
     var btnReset = document.getElementById('btn-reset');
     var configNote = document.querySelector('.config-note');
+    var handoffForm = document.getElementById('handoff-form');
+    var handoffToken = document.getElementById('handoff-id-token');
+    var isHandingOff = false;
+
+    function setStatus_(msg, kind) {
+      statusLine.textContent = msg || '';
+      statusLine.className = 'status' + (kind ? ' ' + kind : '');
+    }
+
+    function isGasUrlPlaceholder_() {
+      return !GAS_WEB_APP_URL || GAS_WEB_APP_URL.indexOf('COLE_AQUI') !== -1;
+    }
 
     /**
-     * Decodifica payload JWT apenas para exibição local (NÃO é verificação).
+     * Decodifica payload JWT apenas para exibição local em ?dev=1 (NÃO é verificação).
      * @param {string} credential ID token
      * @return {Object|null}
      */
@@ -241,30 +277,58 @@
       appendDiagRow_('exp', formatExp_(payload.exp));
     }
 
-    function handleCredentialResponse_(response) {
-      if (!response || !response.credential) {
+    function startHandoff_(credential) {
+      if (isHandingOff) return;
+      if (!credential) {
+        setStatus_('Credential ausente.', 'err');
         return;
       }
-      var payload = decodeJwtPayloadForDisplay_(response.credential);
-      showDiagnostic_(payload);
-      cardSignin.classList.add('hidden');
-      cardResult.classList.remove('hidden');
+      if (isGasUrlPlaceholder_()) {
+        setStatus_('Configure GAS_WEB_APP_URL no script desta página (URL /exec).', 'err');
+        if (configNote) configNote.classList.remove('hidden');
+        return;
+      }
+      if (DEV_MODE) {
+        showDiagnostic_(decodeJwtPayloadForDisplay_(credential));
+        cardResult.classList.remove('hidden');
+      } else {
+        cardResult.classList.add('hidden');
+        diagFields.innerHTML = '';
+      }
+      isHandingOff = true;
+      setStatus_('Autenticando com segurança...', 'ok');
+      handoffForm.action = GAS_WEB_APP_URL;
+      handoffToken.value = credential;
+      // Navegação top-level: JWT vai no corpo POST, não na query string.
+      handoffForm.submit();
+    }
+
+    function handleCredentialResponse_(response) {
+      if (!response || !response.credential) {
+        setStatus_('Login Google sem credential.', 'err');
+        return;
+      }
+      // Não persistir, não logar e não colocar JWT na URL.
+      startHandoff_(response.credential);
     }
 
     function initGoogleSignIn_() {
       if (!window.google || !google.accounts || !google.accounts.id) {
-        signinArea.textContent = 'Carregando Google Identity Services…';
+        setStatus_('Carregando Google Identity Services…');
         setTimeout(initGoogleSignIn_, 100);
         return;
       }
       if (GOOGLE_CLIENT_ID.indexOf('SEU_GOOGLE_CLIENT_ID') !== -1) {
         if (configNote) configNote.classList.remove('hidden');
-        signinArea.innerHTML =
-          '<p style="color:#b23b3b;font-size:0.9rem;margin:0;">' +
-          'Configure <strong>GOOGLE_CLIENT_ID</strong> no script desta página antes de testar.</p>';
+        signinArea.innerHTML = '';
+        setStatus_('Configure GOOGLE_CLIENT_ID no script desta página.', 'err');
         return;
       }
-      if (configNote) configNote.classList.add('hidden');
+      if (isGasUrlPlaceholder_()) {
+        if (configNote) configNote.classList.remove('hidden');
+      } else if (configNote) {
+        configNote.classList.add('hidden');
+      }
       signinArea.innerHTML = '';
       google.accounts.id.initialize({
         client_id: GOOGLE_CLIENT_ID,
@@ -279,16 +343,21 @@
         text: 'signin_with',
         locale: 'pt-BR'
       });
+      setStatus_('');
     }
 
     function resetLocalState_() {
       if (window.google && google.accounts && google.accounts.id) {
         google.accounts.id.disableAutoSelect();
       }
+      isHandingOff = false;
+      handoffToken.value = '';
+      handoffForm.action = '';
       diagFields.innerHTML = '';
       cardResult.classList.add('hidden');
       cardSignin.classList.remove('hidden');
       signinArea.innerHTML = '';
+      setStatus_('');
       initGoogleSignIn_();
     }
 
