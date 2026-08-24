@@ -148,7 +148,7 @@
       <h2>Entrar</h2>
       <div id="signin-area"></div>
       <p class="status" id="status-line"></p>
-      <p class="config-note">
+      <p class="config-note hidden" id="config-note">
         Configure no script: <code>GOOGLE_CLIENT_ID</code> e
         <code>GAS_WEB_APP_URL</code> (URL /exec da implantação).
       </p>
@@ -187,7 +187,7 @@
     var GOOGLE_CLIENT_ID = '554666690300-kn5di3i37h8d4ddu9ibk6mtmhaspv6ti.apps.googleusercontent.com';
 
     /* Cole a URL /exec da implantação (Execute as Me + Anyone). */
-    var GAS_WEB_APP_URL = 'COLE_AQUI_A_URL_DO_WEB_APP_EXEC';
+    var GAS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxmjkpgqsYqb9BF2nmqxpmu9MtnMMNIf7YAE7IoPJMwDTvTYuptC0tQtcBh2pHDw3tF/exec';
 
     var DEV_MODE = /[?&]dev=1(?:&|$)/.test(window.location.search);
 
@@ -197,7 +197,7 @@
     var statusLine = document.getElementById('status-line');
     var diagFields = document.getElementById('diag-fields');
     var btnReset = document.getElementById('btn-reset');
-    var configNote = document.querySelector('.config-note');
+    var configNote = document.getElementById('config-note');
     var handoffForm = document.getElementById('handoff-form');
     var handoffToken = document.getElementById('handoff-id-token');
     var isHandingOff = false;
@@ -207,9 +207,28 @@
       statusLine.className = 'status' + (kind ? ' ' + kind : '');
     }
 
-    function isGasUrlPlaceholder_() {
-      return !GAS_WEB_APP_URL || GAS_WEB_APP_URL.indexOf('COLE_AQUI') !== -1;
+    /**
+     * Inválida se vazia, placeholder (COLE_AQUI) ou não for URL /exec do GAS.
+     * Válida: https://script.google.com/macros/s/.../exec
+     */
+    function isGasWebAppUrlInvalid_() {
+      if (!GAS_WEB_APP_URL || typeof GAS_WEB_APP_URL !== 'string') return true;
+      var url = GAS_WEB_APP_URL.replace(/^\s+|\s+$/g, '');
+      if (!url || url.indexOf('COLE_AQUI') !== -1) return true;
+      return !/^https:\/\/script\.google\.com\/macros\/s\/[^/?#]+\/exec\/?$/.test(url);
     }
+
+    function syncConfigNote_() {
+      if (!configNote) return;
+      var needsClientId = GOOGLE_CLIENT_ID.indexOf('SEU_GOOGLE_CLIENT_ID') !== -1;
+      if (needsClientId || isGasWebAppUrlInvalid_()) {
+        configNote.classList.remove('hidden');
+      } else {
+        configNote.classList.add('hidden');
+      }
+    }
+
+    syncConfigNote_();
 
     /**
      * Decodifica payload JWT apenas para exibição local em ?dev=1 (NÃO é verificação).
@@ -283,9 +302,9 @@
         setStatus_('Credential ausente.', 'err');
         return;
       }
-      if (isGasUrlPlaceholder_()) {
+      if (isGasWebAppUrlInvalid_()) {
         setStatus_('Configure GAS_WEB_APP_URL no script desta página (URL /exec).', 'err');
-        if (configNote) configNote.classList.remove('hidden');
+        syncConfigNote_();
         return;
       }
       if (DEV_MODE) {
@@ -319,16 +338,12 @@
         return;
       }
       if (GOOGLE_CLIENT_ID.indexOf('SEU_GOOGLE_CLIENT_ID') !== -1) {
-        if (configNote) configNote.classList.remove('hidden');
+        syncConfigNote_();
         signinArea.innerHTML = '';
         setStatus_('Configure GOOGLE_CLIENT_ID no script desta página.', 'err');
         return;
       }
-      if (isGasUrlPlaceholder_()) {
-        if (configNote) configNote.classList.remove('hidden');
-      } else if (configNote) {
-        configNote.classList.add('hidden');
-      }
+      syncConfigNote_();
       signinArea.innerHTML = '';
       google.accounts.id.initialize({
         client_id: GOOGLE_CLIENT_ID,
