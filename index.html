@@ -3,10 +3,299 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Controle de Suplementação</title>
+  <title>Controle de Suplementação — Smoke GIS (M7.2c)</title>
+  <style>
+    :root {
+      --ink: #12203a;
+      --paper: #f3f1ea;
+      --card: #fff;
+      --line: #dcd8cb;
+      --ok: #2f7a52;
+      --warn: #92400e;
+      --muted: #6b7280;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, Arial, sans-serif;
+      background: var(--paper);
+      color: var(--ink);
+      line-height: 1.5;
+    }
+    .wrap {
+      max-width: 480px;
+      margin: 0 auto;
+      padding: 32px 16px 48px;
+    }
+    h1 {
+      font-size: 1.35rem;
+      margin: 0 0 4px;
+      color: var(--ink);
+    }
+    .subtitle {
+      font-size: 0.95rem;
+      color: var(--muted);
+      margin: 0 0 24px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+    .card h2 {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      margin: 0 0 14px;
+    }
+    .dev-banner {
+      background: #fff8e6;
+      border: 1px dashed #b45309;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 0.82rem;
+      color: var(--warn);
+      margin-bottom: 20px;
+    }
+    .success {
+      color: var(--ok);
+      font-weight: 600;
+      font-size: 0.95rem;
+      margin: 0 0 16px;
+    }
+    .diag dl {
+      margin: 0;
+      font-size: 0.9rem;
+    }
+    .diag dt {
+      font-weight: 600;
+      color: var(--muted);
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      margin-top: 10px;
+    }
+    .diag dt:first-child { margin-top: 0; }
+    .diag dd {
+      margin: 2px 0 0;
+      word-break: break-all;
+    }
+    .diag img.avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      margin-top: 4px;
+      border: 1px solid var(--line);
+    }
+    .btn-reset {
+      margin-top: 16px;
+      padding: 10px 16px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      background: transparent;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: var(--ink);
+    }
+    .btn-reset:hover { background: #f9f7f2; }
+    #signin-area { min-height: 44px; }
+    .hidden { display: none !important; }
+    .footnote {
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-top: 20px;
+    }
+    .config-note {
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid var(--line);
+    }
+    .config-note code {
+      font-size: 0.75rem;
+      background: #f0ede4;
+      padding: 1px 4px;
+      border-radius: 3px;
+    }
+  </style>
 </head>
 <body>
-  <h1>Controle de Suplementação</h1>
-  <p>Página de autenticação funcionando.</p>
+  <div class="wrap">
+    <h1>Controle de Suplementação</h1>
+    <p class="subtitle">Acesso</p>
+
+    <div class="dev-banner">
+      Página de diagnóstico temporária (M7.2c). Não é o sistema principal.
+      O decode do JWT abaixo <strong>não</strong> é validação de segurança.
+    </div>
+
+    <div class="card" id="card-signin">
+      <h2>Entrar</h2>
+      <div id="signin-area"></div>
+      <p class="config-note">
+        Client ID: substitua <code>GOOGLE_CLIENT_ID</code> no script desta página
+        (constante no topo do &lt;script&gt;).
+      </p>
+    </div>
+
+    <div class="card hidden" id="card-result">
+      <p class="success" id="msg-success">
+        Login GIS recebido com sucesso — token ainda NÃO validado pelo backend.
+      </p>
+      <h2>Conta reconhecida para teste</h2>
+      <div class="diag" id="diag-fields"></div>
+      <button type="button" class="btn-reset" id="btn-reset">
+        Sair / Testar outra conta
+      </button>
+    </div>
+
+    <p class="footnote">
+      Esta página não grava token, não chama Apps Script e não autoriza acesso ao sistema.
+    </p>
+  </div>
+
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script>
+    /* ===================================================================
+       M7.2c — Smoke test GIS (GitHub Pages)
+       Substitua pelo OAuth Client ID Web (público) do Google Cloud Console:
+       https://console.cloud.google.com/apis/credentials
+       =================================================================== */
+    var GOOGLE_CLIENT_ID = '554666690300-kn5di3i37h8d4ddu9ibk6mtmhaspv6ti.apps.googleusercontent.com';
+
+    var cardSignin = document.getElementById('card-signin');
+    var cardResult = document.getElementById('card-result');
+    var signinArea = document.getElementById('signin-area');
+    var diagFields = document.getElementById('diag-fields');
+    var btnReset = document.getElementById('btn-reset');
+
+    /**
+     * Decodifica payload JWT apenas para exibição local (NÃO é verificação).
+     * @param {string} credential ID token
+     * @return {Object|null}
+     */
+    function decodeJwtPayloadForDisplay_(credential) {
+      if (!credential || typeof credential !== 'string') return null;
+      var parts = credential.split('.');
+      if (parts.length !== 3) return null;
+      try {
+        var b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+        while (b64.length % 4) b64 += '=';
+        return JSON.parse(atob(b64));
+      } catch (e) {
+        return null;
+      }
+    }
+
+    function formatExp_(exp) {
+      if (exp == null || exp === '') return '—';
+      var n = Number(exp);
+      if (!isFinite(n)) return String(exp);
+      try {
+        return new Date(n * 1000).toISOString() + ' (' + n + ')';
+      } catch (e2) {
+        return String(exp);
+      }
+    }
+
+    function appendDiagRow_(label, value) {
+      var dt = document.createElement('dt');
+      dt.textContent = label;
+      var dd = document.createElement('dd');
+      if (value && value.nodeType === 1) {
+        dd.appendChild(value);
+      } else {
+        dd.textContent = value == null || value === '' ? '—' : String(value);
+      }
+      diagFields.appendChild(dt);
+      diagFields.appendChild(dd);
+    }
+
+    function showDiagnostic_(payload) {
+      diagFields.innerHTML = '';
+      if (!payload) {
+        appendDiagRow_('Erro', 'Não foi possível decodificar o payload para exibição.');
+        return;
+      }
+      appendDiagRow_('sub', payload.sub);
+      appendDiagRow_('email', payload.email);
+      appendDiagRow_('email_verified', payload.email_verified);
+      appendDiagRow_('name', payload.name);
+      if (payload.picture) {
+        var img = document.createElement('img');
+        img.className = 'avatar';
+        img.src = payload.picture;
+        img.alt = 'Foto do perfil Google';
+        img.width = 48;
+        img.height = 48;
+        appendDiagRow_('picture', img);
+      }
+      appendDiagRow_('aud', payload.aud);
+      appendDiagRow_('iss', payload.iss);
+      appendDiagRow_('exp', formatExp_(payload.exp));
+    }
+
+    function handleCredentialResponse_(response) {
+      if (!response || !response.credential) {
+        return;
+      }
+      var payload = decodeJwtPayloadForDisplay_(response.credential);
+      showDiagnostic_(payload);
+      cardSignin.classList.add('hidden');
+      cardResult.classList.remove('hidden');
+    }
+
+    function initGoogleSignIn_() {
+      if (!window.google || !google.accounts || !google.accounts.id) {
+        signinArea.textContent = 'Carregando Google Identity Services…';
+        setTimeout(initGoogleSignIn_, 100);
+        return;
+      }
+      if (GOOGLE_CLIENT_ID.indexOf('SEU_GOOGLE_CLIENT_ID') !== -1) {
+        signinArea.innerHTML =
+          '<p style="color:#b23b3b;font-size:0.9rem;margin:0;">' +
+          'Configure <strong>GOOGLE_CLIENT_ID</strong> no script desta página antes de testar.</p>';
+        return;
+      }
+      signinArea.innerHTML = '';
+      google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: handleCredentialResponse_,
+        auto_select: false,
+        cancel_on_tap_outside: true
+      });
+      google.accounts.id.renderButton(signinArea, {
+        type: 'standard',
+        theme: 'outline',
+        size: 'large',
+        text: 'signin_with',
+        locale: 'pt-BR'
+      });
+    }
+
+    function resetLocalState_() {
+      if (window.google && google.accounts && google.accounts.id) {
+        google.accounts.id.disableAutoSelect();
+      }
+      diagFields.innerHTML = '';
+      cardResult.classList.add('hidden');
+      cardSignin.classList.remove('hidden');
+      signinArea.innerHTML = '';
+      initGoogleSignIn_();
+    }
+
+    btnReset.addEventListener('click', resetLocalState_);
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initGoogleSignIn_);
+    } else {
+      initGoogleSignIn_();
+    }
+  </script>
 </body>
 </html>
