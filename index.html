@@ -173,6 +173,7 @@
     var signinArea = document.getElementById('signin-area');
     var diagFields = document.getElementById('diag-fields');
     var btnReset = document.getElementById('btn-reset');
+    var configNote = document.querySelector('.config-note');
 
     /**
      * Decodifica payload JWT apenas para exibição local (NÃO é verificação).
@@ -257,11 +258,13 @@
         return;
       }
       if (GOOGLE_CLIENT_ID.indexOf('SEU_GOOGLE_CLIENT_ID') !== -1) {
+        if (configNote) configNote.classList.remove('hidden');
         signinArea.innerHTML =
           '<p style="color:#b23b3b;font-size:0.9rem;margin:0;">' +
           'Configure <strong>GOOGLE_CLIENT_ID</strong> no script desta página antes de testar.</p>';
         return;
       }
+      if (configNote) configNote.classList.add('hidden');
       signinArea.innerHTML = '';
       google.accounts.id.initialize({
         client_id: GOOGLE_CLIENT_ID,
