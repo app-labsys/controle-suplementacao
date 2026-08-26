@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Controle de Suplementação — Acesso (M7.2d)</title>
+  <title>Controle de Suplementação — Acesso</title>
   <style>
     :root {
       --ink: #12203a;
@@ -11,7 +11,6 @@
       --card: #fff;
       --line: #dcd8cb;
       --ok: #2f7a52;
-      --warn: #92400e;
       --muted: #6b7280;
       --err: #b23b3b;
     }
@@ -19,32 +18,38 @@
     body {
       margin: 0;
       min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, Arial, sans-serif;
       background: var(--paper);
       color: var(--ink);
       line-height: 1.5;
     }
     .wrap {
-      max-width: 480px;
+      width: 100%;
+      max-width: 400px;
       margin: 0 auto;
-      padding: 32px 16px 48px;
+      padding: 24px 16px;
     }
     h1 {
       font-size: 1.35rem;
       margin: 0 0 4px;
       color: var(--ink);
+      text-align: center;
     }
     .subtitle {
       font-size: 0.95rem;
       color: var(--muted);
-      margin: 0 0 24px;
+      margin: 0 0 20px;
+      text-align: center;
     }
     .card {
       background: var(--card);
       border: 1px solid var(--line);
       border-radius: 12px;
-      padding: 20px;
-      margin-bottom: 16px;
+      padding: 24px 20px;
+      margin-bottom: 12px;
     }
     .card h2 {
       font-size: 0.8rem;
@@ -52,15 +57,6 @@
       letter-spacing: 0.04em;
       color: var(--muted);
       margin: 0 0 14px;
-    }
-    .dev-banner {
-      background: #fff8e6;
-      border: 1px dashed #b45309;
-      border-radius: 8px;
-      padding: 10px 12px;
-      font-size: 0.82rem;
-      color: var(--warn);
-      margin-bottom: 20px;
     }
     .success {
       color: var(--ok);
@@ -73,6 +69,7 @@
       color: var(--muted);
       margin: 12px 0 0;
       min-height: 1.35em;
+      text-align: center;
     }
     .status.ok { color: var(--ok); }
     .status.err { color: var(--err); }
@@ -111,12 +108,17 @@
       color: var(--ink);
     }
     .btn-reset:hover { background: #f9f7f2; }
-    #signin-area { min-height: 44px; }
+    #signin-area {
+      min-height: 44px;
+      display: flex;
+      justify-content: center;
+    }
     .hidden { display: none !important; }
     .footnote {
-      font-size: 0.78rem;
+      font-size: 0.85rem;
       color: var(--muted);
-      margin-top: 20px;
+      margin: 0;
+      text-align: center;
     }
     .config-note {
       font-size: 0.78rem;
@@ -124,6 +126,7 @@
       margin-top: 12px;
       padding-top: 12px;
       border-top: 1px solid var(--line);
+      text-align: center;
     }
     .config-note code {
       font-size: 0.75rem;
@@ -136,16 +139,9 @@
 <body>
   <div class="wrap">
     <h1>Controle de Suplementação</h1>
-    <p class="subtitle">Acesso</p>
-
-    <div class="dev-banner">
-      M7.2d — após “Entrar com Google”, o ID token é enviado ao Apps Script por
-      <strong>form POST</strong> (não fica na URL). O sistema principal ainda não
-      autoriza por esta identidade.
-    </div>
+    <p class="subtitle">Acesso ao sistema</p>
 
     <div class="card" id="card-signin">
-      <h2>Entrar</h2>
       <div id="signin-area"></div>
       <p class="status" id="status-line"></p>
       <p class="config-note hidden" id="config-note">
@@ -155,10 +151,8 @@
     </div>
 
     <div class="card hidden" id="card-result">
-      <p class="success" id="msg-success">
-        Decode local (DEV) — NÃO é validação de segurança.
-      </p>
-      <h2>Claims diagnósticos (?dev=1)</h2>
+      <p class="success" id="msg-success"></p>
+      <h2></h2>
       <div class="diag" id="diag-fields"></div>
       <button type="button" class="btn-reset" id="btn-reset">
         Sair / Testar outra conta
@@ -166,9 +160,7 @@
     </div>
 
     <p class="footnote">
-      Esta página não grava token, não usa localStorage e não autoriza o sistema.
-      Adicione <code>?dev=1</code> na URL para ver claims diagnósticos locais
-      (decode ≠ validação).
+      Utilize sua conta Google autorizada para acessar.
     </p>
   </div>
 
